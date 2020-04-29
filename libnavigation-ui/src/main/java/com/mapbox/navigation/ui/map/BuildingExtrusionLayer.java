@@ -1,4 +1,4 @@
-package com.mapbox.navigation.ui.arrival;
+package com.mapbox.navigation.ui.map;
 
 import android.graphics.Color;
 
@@ -24,15 +24,18 @@ import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillExtrusionHei
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.fillExtrusionOpacity;
 import static com.mapbox.mapboxsdk.style.layers.PropertyFactory.visibility;
 
+/**
+ * This layer handles the creation and customization of a {@link FillExtrusionLayer}
+ * to show 3D buildings.
+ */
 public class BuildingExtrusionLayer {
 
   private static final String FILL_EXTRUSION_LAYER_ID = "extruded-buildings";
   private static final String BUILDING_LAYER_ID = "building";
-  private static final String HEIGHT = "height";
   private static final String MIN_HEIGHT = "min_height";
   private static final Float DEFAULT_FILL_EXTRUSION_OPACITY = 0.6f;
   private static final Integer DEFAULT_FILL_EXTRUSION_COLOR = Color.parseColor("#F9F9F9");
-  private static final Float DEFAULT_MIN_ZOOM_LEVEL = 15f;
+  private static final Float DEFAULT_MIN_ZOOM_LEVEL = 15.5f;
   private Float opacity;
   private Integer color;
   private Float minZoomLevel;
@@ -48,7 +51,7 @@ public class BuildingExtrusionLayer {
   /**
    * Toggles the visibility of the building extrusion layer.
    *
-   * @param visible true if the layer should be placed/displayed. False if it should be hidden.
+   * @param visible true if the layer should be added/displayed. False if it should be hidden.
    */
   public void updateVisibility(final Boolean visible) {
     if (mapView.isDestroyed()) {
@@ -62,8 +65,8 @@ public class BuildingExtrusionLayer {
           addLayerToMap(visible);
         } else if (layer.getVisibility().value.equals(VISIBLE) != visible) {
           layer.setProperties(visibility(visible ? VISIBLE : NONE));
-          layerVisible = visible;
         }
+        layerVisible = visible;
       }
     });
   }
@@ -89,6 +92,33 @@ public class BuildingExtrusionLayer {
       }
     });
     return layerVisible;
+  }
+
+  /**
+   * Retrieve the latest set opacity of the building extrusion layer.
+   *
+   * @return the opacity Float
+   */
+  public Float getOpacity() {
+    return opacity;
+  }
+
+  /**
+   * Retrieve the latest set opacity of the building extrusion layer.
+   *
+   * @return the color Integer
+   */
+  public Integer getColor() {
+    return color;
+  }
+
+  /**
+   * Retrieve the minimum zoom level that the building extrusion layer will appear at.
+   *
+   * @return the minimum zoom level Float
+   */
+  public Float getMinZoomLevel() {
+    return minZoomLevel;
   }
 
   /**
@@ -150,23 +180,10 @@ public class BuildingExtrusionLayer {
   }
 
   /**
-   * Retrieve the latest set opacity of the building extrusion layer.
+   * Adds the extrusion layer to the map
    *
-   * @return the opacity Float
+   * @param visible whether the extrusion layer should be visible on the map
    */
-  public Float getOpacity() {
-    return opacity;
-  }
-
-  /**
-   * Retrieve the latest set opacity of the building extrusion layer.
-   *
-   * @return the color Integer
-   */
-  public Integer getColor() {
-    return color;
-  }
-
   private void addLayerToMap(final Boolean visible) {
     mapboxMap.getStyle(new Style.OnStyleLoaded() {
       @Override
