@@ -159,4 +159,49 @@ class ReplayRouteSmootherTest {
 
         Assert.assertEquals(2, segment.size)
     }
+
+    @Test
+    fun `should remove duplicates`() {
+        val coordinates = listOf<Point>(
+            Point.fromLngLat(-122.393181, 37.758193),
+            Point.fromLngLat(-122.393143, 37.757759),
+            Point.fromLngLat(-122.393143, 37.757743),
+            Point.fromLngLat(-122.393136, 37.757652),
+            Point.fromLngLat(-122.393136, 37.757652),
+            Point.fromLngLat(-122.393136, 37.757652),
+            Point.fromLngLat(-122.393014, 37.757663),
+            Point.fromLngLat(-122.392991, 37.757663),
+            Point.fromLngLat(-122.392792, 37.757675),
+            Point.fromLngLat(-122.39264, 37.757682),
+            Point.fromLngLat(-122.392525, 37.75769),
+            Point.fromLngLat(-122.392266, 37.757705),
+            Point.fromLngLat(-122.392266, 37.757705),
+            Point.fromLngLat(-122.392266, 37.757705),
+            Point.fromLngLat(-122.392235, 37.757705),
+            Point.fromLngLat(-122.392182, 37.757709),
+            Point.fromLngLat(-122.391335, 37.757759),
+            Point.fromLngLat(-122.391305, 37.757759),
+            Point.fromLngLat(-122.391175, 37.757766),
+            Point.fromLngLat(-122.391175, 37.757766),
+            Point.fromLngLat(-122.391182, 37.757854),
+            Point.fromLngLat(-122.391182, 37.757881),
+            Point.fromLngLat(-122.391221, 37.758235),
+            Point.fromLngLat(-122.391243, 37.758468),
+            Point.fromLngLat(-122.39135, 37.759613),
+            Point.fromLngLat(-122.39135, 37.759613)
+        )
+
+        val smoothedRoutes = routeSmoother.smoothRoute(coordinates, recommendedThresholdMeters)
+        println(LineString.fromLngLats(smoothedRoutes.map { it.point }).toJson())
+
+        assertEquals(4, smoothedRoutes.size)
+        assertEquals(-122.393181, smoothedRoutes[0].point.longitude())
+        assertEquals(37.758193, smoothedRoutes[0].point.latitude())
+        assertEquals(-122.393136, smoothedRoutes[1].point.longitude())
+        assertEquals(37.757652, smoothedRoutes[1].point.latitude())
+        assertEquals(-122.391175, smoothedRoutes[2].point.longitude())
+        assertEquals(37.757766, smoothedRoutes[2].point.latitude())
+        assertEquals(-122.39135, smoothedRoutes[3].point.longitude())
+        assertEquals(37.759613, smoothedRoutes[3].point.latitude())
+    }
 }

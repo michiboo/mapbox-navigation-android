@@ -25,13 +25,14 @@ internal class ReplayRouteSmoother {
      * changes in bearing. Each location will have a bearing and a distance.
      */
     fun smoothRoute(points: List<Point>, thresholdMeters: Double): List<ReplayRouteLocation> {
-        val smoothIndices = smoothRouteIndices(points, thresholdMeters)
-        val smoothLocations = smoothIndices.map { ReplayRouteLocation(it, points[it]) }
+        val distinctPoints = distinctPoints(points)
+        val smoothIndices = smoothRouteIndices(distinctPoints, thresholdMeters)
+        val smoothLocations = smoothIndices.map { ReplayRouteLocation(it, distinctPoints[it]) }
 
         var segmentStart = smoothLocations[0]
         var segmentEnd = smoothLocations[1]
         var bearing = TurfMeasurement.bearing(segmentStart.point, segmentEnd.point)
-        var segmentRoute = segmentRoute(points, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
+        var segmentRoute = segmentRoute(distinctPoints, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
         var distance = TurfMeasurement.length(LineString.fromLngLats(segmentRoute), TurfConstants.UNIT_METERS)
         smoothLocations.first().apply {
             this.bearing = bearing
@@ -41,7 +42,7 @@ internal class ReplayRouteSmoother {
         for (i in 1 until smoothLocations.size - 1) {
             segmentStart = smoothLocations[i]
             segmentEnd = smoothLocations[i + 1]
-            segmentRoute = segmentRoute(points, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
+            segmentRoute = segmentRoute(distinctPoints, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
             distance = TurfMeasurement.length(LineString.fromLngLats(segmentRoute), TurfConstants.UNIT_METERS)
             bearing = TurfMeasurement.bearing(segmentStart.point, segmentEnd.point)
 
@@ -82,6 +83,19 @@ internal class ReplayRouteSmoother {
         smoothedRouteIndices.add(points.lastIndex)
 
         return smoothedRouteIndices
+    }
+
+    fun distinctPoints(points: List<Point>): List<Point> {
+        var previous = points.firstOrNull() ?: return points
+        val distinct = mutableListOf(previous)
+        for (i in 1..points.lastIndex) {
+            val distance = TurfMeasurement.distance(previous, points[i], TurfConstants.UNIT_METERS)
+            if (distance >= 0.001) {
+                distinct.add(points[i])
+                previous = points[i]
+            }
+        }
+        return distinct
     }
 
     /**
