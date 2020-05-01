@@ -161,7 +161,7 @@ class ReplayRouteSmootherTest {
     }
 
     @Test
-    fun `should remove duplicates`() {
+    fun `should not be weighted by duplicates`() {
         val coordinates = listOf<Point>(
             Point.fromLngLat(-122.393181, 37.758193),
             Point.fromLngLat(-122.393143, 37.757759),

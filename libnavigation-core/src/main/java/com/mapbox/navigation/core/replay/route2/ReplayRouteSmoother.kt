@@ -25,7 +25,7 @@ internal class ReplayRouteSmoother {
      * changes in bearing. Each location will have a bearing and a distance.
      */
     fun smoothRoute(points: List<Point>, thresholdMeters: Double): List<ReplayRouteLocation> {
-        val distinctPoints = distinctPoints(points)
+        val distinctPoints = distinctPoints(points, DISTINCT_POINT_METERS)
         val smoothIndices = smoothRouteIndices(distinctPoints, thresholdMeters)
         val smoothLocations = smoothIndices.map { ReplayRouteLocation(it, distinctPoints[it]) }
 
@@ -85,12 +85,16 @@ internal class ReplayRouteSmoother {
         return smoothedRouteIndices
     }
 
-    fun distinctPoints(points: List<Point>): List<Point> {
+    /**
+     * Takes a list of points removes points outside of a threshold distance.
+     * Note that this will not remove u-turn points.
+     */
+    fun distinctPoints(points: List<Point>, thresholdMeters: Double): List<Point> {
         var previous = points.firstOrNull() ?: return points
         val distinct = mutableListOf(previous)
         for (i in 1..points.lastIndex) {
             val distance = TurfMeasurement.distance(previous, points[i], TurfConstants.UNIT_METERS)
-            if (distance >= 0.001) {
+            if (distance >= thresholdMeters) {
                 distinct.add(points[i])
                 previous = points[i]
             }
@@ -185,5 +189,6 @@ internal class ReplayRouteSmoother {
 
     companion object {
         val EARTH_CENTER: DoubleArray = doubleArrayOf(0.0, 0.0, 0.0)
+        val DISTINCT_POINT_METERS = 0.0001
     }
 }
