@@ -216,7 +216,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
         override fun navigateNextRouteLeg(routeLegProgress: RouteLegProgress): Boolean {
             // This example shows you can use both time and distance.
             // Move to the next step when the distance is small
-            Timber.i("arrival_debug legIndex=${routeLegProgress.legIndex()} distanceRemaining=${routeLegProgress.distanceRemaining()}")
+            Timber.i("ReplayRoute legIndex=${routeLegProgress.legIndex()} distanceRemaining=${routeLegProgress.distanceRemaining()}")
             findViewById<Button>(R.id.navigateNextRouteLeg).visibility = View.VISIBLE
             return false
         }
