@@ -39,8 +39,8 @@ internal class ReplayRouteInterpolator {
      * Given a list of coordinates on a route, detect sections of the route that have significant
      * turns. Return a smaller list of replay locations that have calculated speeds.
      */
-    fun createSpeedProfile(coordinates: List<Point>): List<ReplayRouteLocation> {
-        val smoothLocations = routeSmoother.smoothRoute(coordinates, smoothRouteMeters)
+    fun createSpeedProfile(distinctPoints: List<Point>): List<ReplayRouteLocation> {
+        val smoothLocations = routeSmoother.smoothRoute(distinctPoints, smoothRouteMeters)
         smoothLocations.first().speedMps = 0.0
         smoothLocations.last().speedMps = 0.0
 

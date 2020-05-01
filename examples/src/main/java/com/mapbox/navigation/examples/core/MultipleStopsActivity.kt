@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.location.Location
 import android.os.Bundle
 import android.view.View
+import android.widget.Button
 import android.widget.SeekBar
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.snackbar.Snackbar
@@ -27,13 +28,14 @@ import com.mapbox.mapboxsdk.maps.OnMapReadyCallback
 import com.mapbox.mapboxsdk.maps.Style
 import com.mapbox.navigation.base.internal.extensions.applyDefaultParams
 import com.mapbox.navigation.base.trip.model.RouteLegProgress
+import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.directions.session.RoutesRequestCallback
 import com.mapbox.navigation.core.replay.history.ReplayHistoryLocationEngine
 import com.mapbox.navigation.core.replay.history.ReplayHistoryPlayer
 import com.mapbox.navigation.core.replay.route2.ReplayRouteMapper
-import com.mapbox.navigation.core.replay.route2.ReplayRouteMapperType
 import com.mapbox.navigation.core.stops.ArrivalController
+import com.mapbox.navigation.core.stops.ArrivalObserver
 import com.mapbox.navigation.core.stops.ArrivalOptions
 import com.mapbox.navigation.examples.R
 import com.mapbox.navigation.examples.utils.Utils
@@ -147,10 +149,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             if (routes.isNotEmpty()) {
                 navigationMapboxMap?.drawRoute(routes[0])
 
-                val replayEvents = replayRouteMapper.mapDirectionsRoute(routes[0],
-                    ReplayRouteMapperType.GEOMETRY_INTERPOLATOR)
-                replayHistoryPlayer.pushEvents(replayEvents)
-                replayHistoryPlayer.seekTo(replayEvents.first())
+                replayRouteMapper.mapDirectionsRoute(routes[0])
                 startNavigation.visibility = View.VISIBLE
             } else {
                 startNavigation.visibility = View.GONE
@@ -168,7 +167,8 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
 
     @SuppressLint("MissingPermission")
     fun initListeners() {
-        mapboxNavigation?.attachArrivalController(arrivalObserver)
+        mapboxNavigation?.attachArrivalController(arrivalController)
+        mapboxNavigation?.registerArrivalObserver(arrivalObserver)
         setupReplayControls()
         startNavigation.setOnClickListener {
             navigationMapboxMap?.updateCameraTrackingMode(NavigationCamera.NAVIGATION_TRACKING_MODE_GPS)
@@ -197,11 +197,20 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onStartTrackingTouch(seekBar: SeekBar) { }
             override fun onStopTrackingTouch(seekBar: SeekBar) { }
         })
+
+        replayRouteMapper.replayEventsListener = {
+            replayHistoryPlayer.pushEvents(it)
+            replayHistoryPlayer.seekTo(it.first())
+        }
+
+        findViewById<Button>(R.id.navigateNextRouteLeg).setOnClickListener {
+            mapboxNavigation?.navigateNextRouteLeg()
+        }
     }
 
-    private val arrivalObserver = object : ArrivalController {
+    private val arrivalController = object : ArrivalController {
         val arrivalOptions = ArrivalOptions.Builder()
-            .arriveInSeconds(60.0)
+            .arriveInSeconds(5.0)
             .build()
         override fun arrivalOptions(): ArrivalOptions = arrivalOptions
 
@@ -209,7 +218,19 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             // This example shows you can use both time and distance.
             // Move to the next step when the distance is small
             Timber.i("arrival_debug legIndex=${routeLegProgress.legIndex()} distanceRemaining=${routeLegProgress.distanceRemaining()}")
-            return routeLegProgress.distanceRemaining() < 5.0
+            findViewById<Button>(R.id.navigateNextRouteLeg).visibility = View.VISIBLE
+            return false
+        }
+    }
+
+    private val arrivalObserver = object : ArrivalObserver {
+        override fun onStopArrival(routeLegProgress: RouteLegProgress) {
+            Timber.i("ReplayRoute onStopArrival")
+            findViewById<Button>(R.id.navigateNextRouteLeg).visibility = View.GONE
+        }
+
+        override fun onRouteArrival(routeProgress: RouteProgress) {
+            Timber.i("ReplayRoute onRouteArrival")
         }
     }
 

@@ -24,8 +24,7 @@ internal class ReplayRouteSmoother {
      * Take a list of coordinates and return a list of locations where there are significant
      * changes in bearing. Each location will have a bearing and a distance.
      */
-    fun smoothRoute(points: List<Point>, thresholdMeters: Double): List<ReplayRouteLocation> {
-        val distinctPoints = distinctPoints(points, DISTINCT_POINT_METERS)
+    fun smoothRoute(distinctPoints: List<Point>, thresholdMeters: Double): List<ReplayRouteLocation> {
         val smoothIndices = smoothRouteIndices(distinctPoints, thresholdMeters)
         val smoothLocations = smoothIndices.map { ReplayRouteLocation(it, distinctPoints[it]) }
 

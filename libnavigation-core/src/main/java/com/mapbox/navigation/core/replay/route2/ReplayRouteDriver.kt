@@ -1,5 +1,6 @@
 package com.mapbox.navigation.core.replay.route2
 
+import android.util.Log
 import com.mapbox.api.directions.v5.models.RouteLeg
 import com.mapbox.geojson.LineString
 import com.mapbox.geojson.Point
@@ -16,27 +17,35 @@ internal class ReplayRouteDriver {
 
     fun driveGeometry(geometry: String): List<ReplayRouteLocation> {
         val coordinates = LineString.fromPolyline(geometry, 6).coordinates()
-        if (coordinates.size < 3) return emptyList()
+        return drivePointList(coordinates)
+    }
 
-        val smoothLocations = routeInterpolator.createSpeedProfile(coordinates)
+    fun drivePointList(points: List<Point>): List<ReplayRouteLocation> {
+        val distinctPoints = routeSmoother.distinctPoints(points, ReplayRouteSmoother.DISTINCT_POINT_METERS)
+        if (distinctPoints.size < 2) return emptyList()
+
+        Log.i("ReplayRoute", "ReplayRoute drivePointList ${LineString.fromLngLats(distinctPoints).toJson()}")
+
+        val smoothLocations = routeInterpolator.createSpeedProfile(distinctPoints)
         val replayRouteLocations = mutableListOf<ReplayRouteLocation>()
         val firstLocation = smoothLocations[0]
         replayRouteLocations.addLocation(firstLocation)
 
-        for (i in 1 until smoothLocations.size) {
-            val segmentStart = smoothLocations[i - 1]
-            val segmentEnd = smoothLocations[i]
+        for (i in 0 until smoothLocations.lastIndex) {
+            val segmentStart = smoothLocations[i]
+            val segmentEnd = smoothLocations[i + 1]
             val segment = routeInterpolator.interpolateSpeed(
                 segmentStart.speedMps,
                 segmentEnd.speedMps,
                 segmentStart.distance
             )
 
-            val segmentRoute = routeSmoother.segmentRoute(coordinates, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
-            for (stepIndex in 1 until segment.steps.size) {
+            val segmentRoute = routeSmoother.segmentRoute(distinctPoints, segmentStart.routeIndex!!, segmentEnd.routeIndex!!)
+            for (stepIndex in 1..segment.steps.lastIndex) {
                 val step = segment.steps[stepIndex]
                 val point = TurfMeasurement.along(LineString.fromLngLats(segmentRoute), step.positionMeters, TurfConstants.UNIT_METERS)
                 val location = ReplayRouteLocation(null, point)
+                location.distance = step.positionMeters
                 location.speedMps = step.speedMps
                 replayRouteLocations.addLocation(location)
             }

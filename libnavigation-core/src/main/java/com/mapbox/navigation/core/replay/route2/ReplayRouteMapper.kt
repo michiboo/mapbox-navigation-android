@@ -6,10 +6,12 @@ import com.mapbox.api.directions.v5.DirectionsCriteria
 import com.mapbox.api.directions.v5.models.DirectionsRoute
 import com.mapbox.api.directions.v5.models.LegAnnotation
 import com.mapbox.api.directions.v5.models.RouteLeg
+import com.mapbox.geojson.utils.PolylineUtils
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.replay.history.ReplayEventBase
 import com.mapbox.navigation.core.replay.history.ReplayEventLocation
 import com.mapbox.navigation.core.replay.history.ReplayEventUpdateLocation
+import com.mapbox.navigation.core.replay.history.ReplayEventsListener
 import com.mapbox.navigation.core.replay.history.ReplayHistoryPlayer
 import com.mapbox.navigation.core.trip.session.RouteProgressObserver
 import java.lang.IllegalStateException
@@ -41,11 +43,27 @@ class ReplayRouteMapper : RouteProgressObserver {
 
     private val replayRouteDriver = ReplayRouteDriver()
 
+    var replayRouteMapperType: ReplayRouteMapperType = ReplayRouteMapperType.GEOMETRY_INTERPOLATOR
+
+    var replayEventsListener: ReplayEventsListener = { }
+    var currentRouteLeg: RouteLeg? = null
+
     override fun onRouteProgressChanged(routeProgress: RouteProgress) {
         val stepPointsSize = routeProgress.currentLegProgress()?.currentStepProgress()?.stepPoints()?.size
         val stepDistanceRemaining = routeProgress.currentLegProgress()?.currentStepProgress()?.distanceRemaining()
         val legDistanceRemaining = routeProgress.currentLegProgress()?.distanceRemaining()
         Log.i("RouteReplay", "RouteReplay onRouteProgressChanged $legDistanceRemaining $stepDistanceRemaining $stepPointsSize")
+
+        val routeProgressRouteLeg = routeProgress.currentLegProgress()?.routeLeg()
+        if (routeProgressRouteLeg != currentRouteLeg) {
+            this.currentRouteLeg = routeProgressRouteLeg
+            if (routeProgressRouteLeg != null) {
+                val replayEvents = mapRouteLegGeometry(routeProgressRouteLeg)
+                if (replayEvents.isNotEmpty()) {
+                    replayEventsListener(replayEvents)
+                }
+            }
+        }
     }
 
     /**
@@ -55,22 +73,36 @@ class ReplayRouteMapper : RouteProgressObserver {
      * @param directionsRoute the [DirectionsRoute] containing information about a route
      * @param replayRouteMapperType the algorithm used to map the direction route into replay events
      */
-    fun mapDirectionsRoute(directionsRoute: DirectionsRoute, replayRouteMapperType: ReplayRouteMapperType): List<ReplayEventBase> {
+    fun mapDirectionsRoute(directionsRoute: DirectionsRoute): List<ReplayEventBase> {
         return when (replayRouteMapperType) {
             ReplayRouteMapperType.GEOMETRY_INTERPOLATOR -> {
                 val usesPolyline6 = directionsRoute.routeOptions()?.geometries()?.contains(DirectionsCriteria.GEOMETRY_POLYLINE6) ?: false
                 if (!usesPolyline6) {
                     throw IllegalStateException("Add .geometries(DirectionsCriteria.GEOMETRY_POLYLINE6) to your directions request")
                 }
-                val geometry = directionsRoute.geometry() ?: ""
-                mapGeometry(geometry)
+                replayRouteMapperType = ReplayRouteMapperType.GEOMETRY_INTERPOLATOR
+                return emptyList()
             }
             ReplayRouteMapperType.LEG_ANNOTATION_MAPPER -> {
+                replayRouteMapperType = ReplayRouteMapperType.LEG_ANNOTATION_MAPPER
                 directionsRoute.legs()?.flatMap { routeLeg ->
                     mapRouteLeg(routeLeg)
                 } ?: emptyList()
             }
         }
+    }
+
+    fun mapRouteLegGeometry(routeLeg: RouteLeg): List<ReplayEventBase> {
+        val replayEvents = mutableListOf<ReplayEventBase>()
+        routeLeg.steps()?.flatMap { legStep ->
+            val geometry = legStep.geometry() ?: return emptyList()
+            PolylineUtils.decode(geometry, 6)
+        }?.also { points ->
+            replayRouteDriver.drivePointList(points)
+                .map { mapToUpdateLocation(it) }
+                .forEach { replayEvents.add(it) }
+        }
+        return replayEvents
     }
 
     /**

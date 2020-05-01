@@ -24,8 +24,7 @@ class ReplayRouteMapperTest {
             }
         }
 
-        val replayEvent = replayRouteMapper.mapDirectionsRoute(directionRoute,
-            ReplayRouteMapperType.GEOMETRY_INTERPOLATOR)
+        val replayEvent = replayRouteMapper.mapDirectionsRoute(directionRoute)
 
         assertTrue(replayEvent.isEmpty())
     }
