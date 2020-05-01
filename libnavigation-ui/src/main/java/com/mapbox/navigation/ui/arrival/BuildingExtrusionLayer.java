@@ -157,7 +157,7 @@ public class BuildingExtrusionLayer {
   public Float getOpacity() {
     return opacity;
   }
-
+  
   /**
    * Retrieve the latest set opacity of the building extrusion layer.
    *
