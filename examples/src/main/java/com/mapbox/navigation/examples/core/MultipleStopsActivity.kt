@@ -33,6 +33,7 @@ import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.directions.session.RoutesRequestCallback
 import com.mapbox.navigation.core.replay.history.ReplayHistoryLocationEngine
 import com.mapbox.navigation.core.replay.history.ReplayHistoryPlayer
+import com.mapbox.navigation.core.replay.route2.ReplayProgressObserver
 import com.mapbox.navigation.core.replay.route2.ReplayRouteMapper
 import com.mapbox.navigation.core.stops.ArrivalController
 import com.mapbox.navigation.core.stops.ArrivalObserver
@@ -64,7 +65,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val firstLocationCallback = FirstLocationCallback(this)
     private val stopsController = StopsController()
 
-    private val replayRouteMapper = ReplayRouteMapper()
+    private val replayProgressObserver = ReplayProgressObserver()
     private val replayHistoryPlayer = ReplayHistoryPlayer(MapboxLogger)
 
     @SuppressLint("MissingPermission")
@@ -148,8 +149,6 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             Timber.d("route request success %s", routes.toString())
             if (routes.isNotEmpty()) {
                 navigationMapboxMap?.drawRoute(routes[0])
-
-                replayRouteMapper.mapDirectionsRoute(routes[0])
                 startNavigation.visibility = View.VISIBLE
             } else {
                 startNavigation.visibility = View.GONE
@@ -177,7 +176,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             if (mapboxNavigation?.getRoutes()?.isNotEmpty() == true) {
                 navigationMapboxMap?.startCamera(mapboxNavigation?.getRoutes()!![0])
             }
-            mapboxNavigation?.registerRouteProgressObserver(replayRouteMapper)
+            mapboxNavigation?.registerRouteProgressObserver(replayProgressObserver)
             mapboxNavigation?.startTripSession()
             startNavigation.visibility = View.GONE
             replayHistoryPlayer.play(this)
@@ -198,7 +197,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onStopTrackingTouch(seekBar: SeekBar) { }
         })
 
-        replayRouteMapper.replayEventsListener = {
+        replayProgressObserver.replayEventsListener = {
             replayHistoryPlayer.pushEvents(it)
             replayHistoryPlayer.seekTo(it.first())
         }
@@ -277,8 +276,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
         override fun onSuccess(result: LocationEngineResult?) {
             result?.locations?.firstOrNull()?.let { location ->
                 activityRef.get()?.let { activity ->
-                    val locationEvent = activity.replayRouteMapper
-                        .mapToUpdateLocation(0.0, location)
+                    val locationEvent = ReplayRouteMapper.mapToUpdateLocation(0.0, location)
                     val locationEventList = Collections.singletonList(locationEvent)
                     activity.replayHistoryPlayer.pushEvents(locationEventList)
                     activity.replayHistoryPlayer.playFirstLocation()

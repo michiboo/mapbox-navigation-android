@@ -39,39 +39,17 @@ enum class ReplayRouteMapperType {
  * This class converts a directions rout into events that can be
  * replayed using the [ReplayHistoryPlayer] to navigate a route.
  */
-class ReplayRouteMapper : RouteProgressObserver {
+class ReplayRouteMapper {
 
     private val replayRouteDriver = ReplayRouteDriver()
 
     var replayRouteMapperType: ReplayRouteMapperType = ReplayRouteMapperType.GEOMETRY_INTERPOLATOR
-
-    var replayEventsListener: ReplayEventsListener = { }
-    var currentRouteLeg: RouteLeg? = null
-
-    override fun onRouteProgressChanged(routeProgress: RouteProgress) {
-        val stepPointsSize = routeProgress.currentLegProgress()?.currentStepProgress()?.stepPoints()?.size
-        val stepDistanceRemaining = routeProgress.currentLegProgress()?.currentStepProgress()?.distanceRemaining()
-        val legDistanceRemaining = routeProgress.currentLegProgress()?.distanceRemaining()
-        Log.i("RouteReplay", "RouteReplay onRouteProgressChanged $legDistanceRemaining $stepDistanceRemaining $stepPointsSize")
-
-        val routeProgressRouteLeg = routeProgress.currentLegProgress()?.routeLeg()
-        if (routeProgressRouteLeg != currentRouteLeg) {
-            this.currentRouteLeg = routeProgressRouteLeg
-            if (routeProgressRouteLeg != null) {
-                val replayEvents = mapRouteLegGeometry(routeProgressRouteLeg)
-                if (replayEvents.isNotEmpty()) {
-                    replayEventsListener(replayEvents)
-                }
-            }
-        }
-    }
 
     /**
      * Take a [DirectionsRoute] and map it to events that can be replayed by the [ReplayHistoryPlayer].
      * This function allows you to choose between different [ReplayRouteMapperType]
      *
      * @param directionsRoute the [DirectionsRoute] containing information about a route
-     * @param replayRouteMapperType the algorithm used to map the direction route into replay events
      */
     fun mapDirectionsRoute(directionsRoute: DirectionsRoute): List<ReplayEventBase> {
         return when (replayRouteMapperType) {
@@ -86,23 +64,10 @@ class ReplayRouteMapper : RouteProgressObserver {
             ReplayRouteMapperType.LEG_ANNOTATION_MAPPER -> {
                 replayRouteMapperType = ReplayRouteMapperType.LEG_ANNOTATION_MAPPER
                 directionsRoute.legs()?.flatMap { routeLeg ->
-                    mapRouteLeg(routeLeg)
+                    mapRouteLegAnnotation(routeLeg)
                 } ?: emptyList()
             }
         }
-    }
-
-    fun mapRouteLegGeometry(routeLeg: RouteLeg): List<ReplayEventBase> {
-        val replayEvents = mutableListOf<ReplayEventBase>()
-        routeLeg.steps()?.flatMap { legStep ->
-            val geometry = legStep.geometry() ?: return emptyList()
-            PolylineUtils.decode(geometry, 6)
-        }?.also { points ->
-            replayRouteDriver.drivePointList(points)
-                .map { mapToUpdateLocation(it) }
-                .forEach { replayEvents.add(it) }
-        }
-        return replayEvents
     }
 
     /**
@@ -123,61 +88,74 @@ class ReplayRouteMapper : RouteProgressObserver {
      *
      * @param routeLeg The route leg to be mapped into replay events
      */
-    fun mapRouteLeg(routeLeg: RouteLeg): List<ReplayEventBase> {
+    fun mapRouteLegAnnotation(routeLeg: RouteLeg): List<ReplayEventBase> {
         return replayRouteDriver.driveRouteLeg(routeLeg)
             .map { mapToUpdateLocation(it) }
     }
 
-    /**
-     * Map a Android location into a replay event.
-     *
-     * @param location simulated location used for replay
-     * @return a singleton list to be replayed, otherwise an empty list if the location cannot be replayed
-     */
-    private fun mapToUpdateLocation(location: ReplayRouteLocation): ReplayEventBase {
-        val values = ReplayEventUpdateLocation(
-            eventTimestamp = location.timeSeconds,
-            location = ReplayEventLocation(
-                lon = location.point.longitude(),
-                lat = location.point.latitude(),
-                provider = "ReplayRoute",
-                time = location.timeSeconds,
-                altitude = null,
-                accuracyHorizontal = REPLAY_ROUTE_ACCURACY_HORIZONTAL,
-                bearing = location.bearing,
-                speed = location.speedMps
-            )
-        )
-        Log.i("ReplayRoute", "ReplayRoute mapToUpdateLocation $values")
-        return values
-    }
-
-    /**
-     * Map a Android location into a replay event.
-     *
-     * @param eventTimestamp the eventTimestamp for the replay event
-     * @param location Android location to be replayed
-     * @return an event to that can be replayed
-     */
-    fun mapToUpdateLocation(eventTimestamp: Double, location: Location): ReplayEventBase {
-        val values = ReplayEventUpdateLocation(
-            eventTimestamp = eventTimestamp,
-            location = ReplayEventLocation(
-                lon = location.longitude,
-                lat = location.latitude,
-                provider = location.provider,
-                time = eventTimestamp,
-                altitude = if (location.hasAltitude()) location.altitude else null,
-                accuracyHorizontal = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
-                bearing = if (location.hasBearing()) location.bearing.toDouble() else null,
-                speed = if (location.hasSpeed()) location.speed.toDouble() else null
-            )
-        )
-        Log.i("ReplayRoute", "ReplayRoute mapToUpdateLocation $values")
-        return values
+    fun mapRouteLegGeometry(routeLeg: RouteLeg): List<ReplayEventBase> {
+        val replayEvents = mutableListOf<ReplayEventBase>()
+        routeLeg.steps()?.flatMap { legStep ->
+            val geometry = legStep.geometry() ?: return emptyList()
+            PolylineUtils.decode(geometry, 6)
+        }?.also { points ->
+            replayRouteDriver.drivePointList(points)
+                .map { ReplayRouteMapper.mapToUpdateLocation(it) }
+                .forEach { replayEvents.add(it) }
+        }
+        return replayEvents
     }
 
     companion object {
-        const val REPLAY_ROUTE_ACCURACY_HORIZONTAL = 3.0
+        private const val REPLAY_ROUTE_ACCURACY_HORIZONTAL = 3.0
+
+        /**
+         * Map a Android location into a replay event.
+         *
+         * @param eventTimestamp the eventTimestamp for the replay event
+         * @param location Android location to be replayed
+         * @return an event to that can be replayed
+         */
+        fun mapToUpdateLocation(eventTimestamp: Double, location: Location): ReplayEventBase {
+            val values = ReplayEventUpdateLocation(
+                eventTimestamp = eventTimestamp,
+                location = ReplayEventLocation(
+                    lon = location.longitude,
+                    lat = location.latitude,
+                    provider = location.provider,
+                    time = eventTimestamp,
+                    altitude = if (location.hasAltitude()) location.altitude else null,
+                    accuracyHorizontal = if (location.hasAccuracy()) location.accuracy.toDouble() else null,
+                    bearing = if (location.hasBearing()) location.bearing.toDouble() else null,
+                    speed = if (location.hasSpeed()) location.speed.toDouble() else null
+                )
+            )
+            Log.i("ReplayRoute", "ReplayRoute mapToUpdateLocation $values")
+            return values
+        }
+
+        /**
+         * Map a Android location into a replay event.
+         *
+         * @param location simulated location used for replay
+         * @return a singleton list to be replayed, otherwise an empty list if the location cannot be replayed
+         */
+        internal fun mapToUpdateLocation(location: ReplayRouteLocation): ReplayEventBase {
+            val values = ReplayEventUpdateLocation(
+                eventTimestamp = location.timeSeconds,
+                location = ReplayEventLocation(
+                    lon = location.point.longitude(),
+                    lat = location.point.latitude(),
+                    provider = "ReplayRoute",
+                    time = location.timeSeconds,
+                    altitude = null,
+                    accuracyHorizontal = REPLAY_ROUTE_ACCURACY_HORIZONTAL,
+                    bearing = location.bearing,
+                    speed = location.speedMps
+                )
+            )
+            Log.i("ReplayRoute", "ReplayRoute mapToUpdateLocation $values")
+            return values
+        }
     }
 }
