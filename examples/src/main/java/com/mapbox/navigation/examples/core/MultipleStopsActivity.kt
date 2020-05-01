@@ -230,6 +230,7 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
 
         override fun onRouteArrival(routeProgress: RouteProgress) {
             Timber.i("ReplayRoute onRouteArrival")
+            findViewById<Button>(R.id.navigateNextRouteLeg).visibility = View.GONE
         }
     }
 

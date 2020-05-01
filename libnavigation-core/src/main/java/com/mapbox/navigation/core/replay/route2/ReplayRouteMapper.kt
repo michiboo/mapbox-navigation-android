@@ -6,34 +6,12 @@ import com.mapbox.api.directions.v5.DirectionsCriteria
 import com.mapbox.api.directions.v5.models.DirectionsRoute
 import com.mapbox.api.directions.v5.models.LegAnnotation
 import com.mapbox.api.directions.v5.models.RouteLeg
+import com.mapbox.api.directions.v5.models.LegStep
 import com.mapbox.geojson.utils.PolylineUtils
-import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.replay.history.ReplayEventBase
 import com.mapbox.navigation.core.replay.history.ReplayEventLocation
 import com.mapbox.navigation.core.replay.history.ReplayEventUpdateLocation
-import com.mapbox.navigation.core.replay.history.ReplayEventsListener
 import com.mapbox.navigation.core.replay.history.ReplayHistoryPlayer
-import com.mapbox.navigation.core.trip.session.RouteProgressObserver
-import java.lang.IllegalStateException
-
-/**
- * There are a couple approaches being taken to replay a [DirectionsRoute]. This type gives
- * the option to try them.
- */
-enum class ReplayRouteMapperType {
-
-    /**
-     * Uses the directions api [DirectionsRoute.geometry] to calculate the speed
-     * and position estimates for the replay locations.
-     */
-    GEOMETRY_INTERPOLATOR,
-
-    /**
-     * Uses the directions api [LegAnnotation] to create the speed and position
-     * estimates for the replay locations.
-     */
-    LEG_ANNOTATION_MAPPER
-}
 
 /**
  * This class converts a directions rout into events that can be
@@ -43,31 +21,37 @@ class ReplayRouteMapper {
 
     private val replayRouteDriver = ReplayRouteDriver()
 
-    var replayRouteMapperType: ReplayRouteMapperType = ReplayRouteMapperType.GEOMETRY_INTERPOLATOR
-
     /**
      * Take a [DirectionsRoute] and map it to events that can be replayed by the [ReplayHistoryPlayer].
-     * This function allows you to choose between different [ReplayRouteMapperType]
+     * Uses the directions api [DirectionsRoute.geometry] to calculate the speed
+     * and position estimates for the replay locations.
      *
      * @param directionsRoute the [DirectionsRoute] containing information about a route
      */
-    fun mapDirectionsRoute(directionsRoute: DirectionsRoute): List<ReplayEventBase> {
-        return when (replayRouteMapperType) {
-            ReplayRouteMapperType.GEOMETRY_INTERPOLATOR -> {
-                val usesPolyline6 = directionsRoute.routeOptions()?.geometries()?.contains(DirectionsCriteria.GEOMETRY_POLYLINE6) ?: false
-                if (!usesPolyline6) {
-                    throw IllegalStateException("Add .geometries(DirectionsCriteria.GEOMETRY_POLYLINE6) to your directions request")
-                }
-                replayRouteMapperType = ReplayRouteMapperType.GEOMETRY_INTERPOLATOR
-                return emptyList()
-            }
-            ReplayRouteMapperType.LEG_ANNOTATION_MAPPER -> {
-                replayRouteMapperType = ReplayRouteMapperType.LEG_ANNOTATION_MAPPER
-                directionsRoute.legs()?.flatMap { routeLeg ->
-                    mapRouteLegAnnotation(routeLeg)
-                } ?: emptyList()
-            }
+    fun mapDirectionsRouteGeometry(directionsRoute: DirectionsRoute): List<ReplayEventBase> {
+        val usesPolyline6 = directionsRoute.routeOptions()?.geometries()?.contains(DirectionsCriteria.GEOMETRY_POLYLINE6) ?: false
+        if (!usesPolyline6) {
+            throw IllegalStateException("Add .geometries(DirectionsCriteria.GEOMETRY_POLYLINE6) to your directions request")
         }
+        val geometry = directionsRoute.geometry() ?: return emptyList()
+        return mapGeometry(geometry)
+    }
+
+    /**
+     * Take a single [RouteLeg] from the [DirectionsRoute] and map it to a drive using the
+     * [LegStep.geometry] composed together.
+     */
+    fun mapRouteLegGeometry(routeLeg: RouteLeg): List<ReplayEventBase> {
+        val replayEvents = mutableListOf<ReplayEventBase>()
+        routeLeg.steps()?.flatMap { legStep ->
+            val geometry = legStep.geometry() ?: return emptyList()
+            PolylineUtils.decode(geometry, 6)
+        }?.also { points ->
+            replayRouteDriver.drivePointList(points)
+                .map { mapToUpdateLocation(it) }
+                .forEach { replayEvents.add(it) }
+        }
+        return replayEvents
     }
 
     /**
@@ -82,6 +66,19 @@ class ReplayRouteMapper {
     }
 
     /**
+     * Take a [DirectionsRoute] and map it to events that can be replayed by the [ReplayHistoryPlayer].
+     * Uses the directions api [LegAnnotation] to create the speed and position
+     * estimates for the replay locations.
+     *
+     * @param directionsRoute the [DirectionsRoute] containing information about a route
+     */
+    fun mapDirectionsRouteLegAnnotation(directionsRoute: DirectionsRoute): List<ReplayEventBase> {
+        return directionsRoute.legs()?.flatMap { routeLeg ->
+            mapRouteLegAnnotation(routeLeg)
+        } ?: emptyList()
+    }
+
+    /**
      * Given a [RouteLeg], use the [LegAnnotation] to create the speed and locations.
      * To use this, your directions request must include [DirectionsCriteria.ANNOTATION_SPEED] and
      * [DirectionsCriteria.ANNOTATION_DISTANCE]
@@ -91,19 +88,6 @@ class ReplayRouteMapper {
     fun mapRouteLegAnnotation(routeLeg: RouteLeg): List<ReplayEventBase> {
         return replayRouteDriver.driveRouteLeg(routeLeg)
             .map { mapToUpdateLocation(it) }
-    }
-
-    fun mapRouteLegGeometry(routeLeg: RouteLeg): List<ReplayEventBase> {
-        val replayEvents = mutableListOf<ReplayEventBase>()
-        routeLeg.steps()?.flatMap { legStep ->
-            val geometry = legStep.geometry() ?: return emptyList()
-            PolylineUtils.decode(geometry, 6)
-        }?.also { points ->
-            replayRouteDriver.drivePointList(points)
-                .map { ReplayRouteMapper.mapToUpdateLocation(it) }
-                .forEach { replayEvents.add(it) }
-        }
-        return replayEvents
     }
 
     companion object {
