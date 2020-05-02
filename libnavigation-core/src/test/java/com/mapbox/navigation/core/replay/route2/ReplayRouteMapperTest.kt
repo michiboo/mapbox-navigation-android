@@ -24,7 +24,7 @@ class ReplayRouteMapperTest {
             }
         }
 
-        val replayEvent = replayRouteMapper.mapDirectionsRoute(directionRoute)
+        val replayEvent = replayRouteMapper.mapDirectionsRouteGeometry(directionRoute)
 
         assertTrue(replayEvent.isEmpty())
     }
@@ -45,7 +45,7 @@ class ReplayRouteMapperTest {
             every { altitude } returns 25.0
         }
 
-        val replayEvent = replayRouteMapper.mapToUpdateLocation(0.1, location)
+        val replayEvent = ReplayRouteMapper.mapToUpdateLocation(0.1, location)
 
         val locationUpdate = replayEvent as ReplayEventUpdateLocation
         assertEquals(0.1, locationUpdate.eventTimestamp, 0.001)
@@ -69,7 +69,7 @@ class ReplayRouteMapperTest {
             every { hasAltitude() } returns false
         }
 
-        val replayEvent = replayRouteMapper.mapToUpdateLocation(0.1, location)
+        val replayEvent = ReplayRouteMapper.mapToUpdateLocation(0.1, location)
 
         val locationUpdate = replayEvent as ReplayEventUpdateLocation
         assertEquals(0.1, locationUpdate.eventTimestamp, 0.001)

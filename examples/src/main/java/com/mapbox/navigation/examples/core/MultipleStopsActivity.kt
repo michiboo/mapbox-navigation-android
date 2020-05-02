@@ -65,8 +65,8 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
     private val firstLocationCallback = FirstLocationCallback(this)
     private val stopsController = StopsController()
 
-    private val replayProgressObserver = ReplayProgressObserver()
     private val replayHistoryPlayer = ReplayHistoryPlayer(MapboxLogger)
+    private val replayProgressObserver = ReplayProgressObserver(replayHistoryPlayer)
 
     @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -196,11 +196,6 @@ class MultipleStopsActivity : AppCompatActivity(), OnMapReadyCallback {
             override fun onStartTrackingTouch(seekBar: SeekBar) { }
             override fun onStopTrackingTouch(seekBar: SeekBar) { }
         })
-
-        replayProgressObserver.replayEventsListener = {
-            replayHistoryPlayer.pushEvents(it)
-            replayHistoryPlayer.seekTo(it.first())
-        }
 
         findViewById<Button>(R.id.navigateNextRouteLeg).setOnClickListener {
             mapboxNavigation?.navigateNextRouteLeg()
